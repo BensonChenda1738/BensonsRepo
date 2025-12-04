@@ -1,0 +1,6 @@
+services:
+  finalproject:
+    image: finalproject
+    build:
+      context: .
+      dockerfile: ./Dockerfile

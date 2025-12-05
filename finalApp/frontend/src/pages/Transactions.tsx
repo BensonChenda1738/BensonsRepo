@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Container,
   Typography,
@@ -22,6 +22,7 @@ import {
   DialogActions,
   Avatar,
   Chip,
+  IconButton,
 } from '@mui/material';
 import { AttachMoney, Phone, History, AccountBalance } from '@mui/icons-material';
 import { mobileMoneyService } from '../services/mobileMoneyService';
@@ -46,6 +47,11 @@ const Transactions: React.FC = () => {
   const [secondaryPin, setSecondaryPin] = useState('');
   const [accountBalance, setAccountBalance] = useState<number | null>(null);
   const [accountName, setAccountName] = useState<string | null>(null);
+  const [smsNotification, setSmsNotification] = useState<{
+    phoneNumber: string;
+    message: string;
+    timestamp: string;
+  } | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([
     // Sample transactions
     {
@@ -66,9 +72,32 @@ const Transactions: React.FC = () => {
     },
   ]);
 
+  // Listen for SMS notification events
+  useEffect(() => {
+    const handleSMSNotification = (event: CustomEvent) => {
+      const { phoneNumber, message, timestamp } = event.detail;
+      setSmsNotification({
+        phoneNumber,
+        message,
+        timestamp,
+      });
+
+      // Auto-hide notification after 10 seconds
+      setTimeout(() => {
+        setSmsNotification(null);
+      }, 10000);
+    };
+
+    window.addEventListener('sms-notification', handleSMSNotification as EventListener);
+
+    return () => {
+      window.removeEventListener('sms-notification', handleSMSNotification as EventListener);
+    };
+  }, []);
+
   const validateMTNNumber = (number: string): boolean => {
-    // Zambian MTN numbers start with 096, 097, or 095
-    const mtnRegex = /^(096|097|095)\d{7}$/;
+    // Zambian MTN numbers start with 096, 097, 095, or 076
+    const mtnRegex = /^(096|097|095|076)\d{7}$/;
     return mtnRegex.test(number);
   };
 
@@ -159,7 +188,12 @@ const Transactions: React.FC = () => {
         setAccountBalance(null);
         setAccountName(null);
       } else {
+        // Show error message
         setError(result.message);
+        
+        // If withdrawal was blocked for 0763913550, the SMS notification
+        // will be automatically displayed via the event listener
+        // The SMS has already been sent to the actual number via SMS gateway
       }
     } catch (err) {
       setError('Failed to process transaction. Please try again.');
@@ -355,6 +389,72 @@ const Transactions: React.FC = () => {
             Process withdrawals and manage transaction history securely
           </Typography>
         </Paper>
+
+        {/* Real-time SMS Notification Display */}
+        {smsNotification && (
+          <Paper
+            elevation={0}
+            sx={{
+              background: 'linear-gradient(135deg, rgba(33, 150, 243, 0.1) 0%, rgba(76, 175, 80, 0.1) 100%)',
+              backdropFilter: 'blur(10px)',
+              borderRadius: 3,
+              p: 3,
+              mb: 3,
+              border: '2px solid rgba(33, 150, 243, 0.3)',
+              animation: 'slideInDown 0.5s ease-out',
+              '@keyframes slideInDown': {
+                from: {
+                  transform: 'translateY(-20px)',
+                  opacity: 0,
+                },
+                to: {
+                  transform: 'translateY(0)',
+                  opacity: 1,
+                },
+              },
+            }}
+          >
+            <Box display="flex" alignItems="center" gap={2}>
+              <Avatar
+                sx={{
+                  bgcolor: 'success.main',
+                  background: 'linear-gradient(45deg, #4CAF50 30%, #66BB6A 90%)',
+                }}
+              >
+                📱
+              </Avatar>
+              <Box flex={1}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 0.5 }}>
+                  SMS Sent in Real-Time 📲
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  To: <strong>{smsNotification.phoneNumber}</strong>
+                </Typography>
+                <Alert 
+                  severity="info" 
+                  sx={{ 
+                    borderRadius: 2,
+                    background: 'rgba(33, 150, 243, 0.1)',
+                    border: '1px solid rgba(33, 150, 243, 0.3)',
+                  }}
+                >
+                  <Typography variant="body1" sx={{ fontWeight: '500' }}>
+                    {smsNotification.message}
+                  </Typography>
+                </Alert>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  Sent at: {new Date(smsNotification.timestamp).toLocaleString()}
+                </Typography>
+              </Box>
+              <IconButton
+                onClick={() => setSmsNotification(null)}
+                sx={{ color: 'text.secondary' }}
+              >
+                ✕
+              </IconButton>
+            </Box>
+          </Paper>
+        )}
 
         <Box display="flex" flexWrap="wrap" gap={3}>
           {/* Transaction Form */}
